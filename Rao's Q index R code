@@ -1,0 +1,98 @@
+# Set the working directory
+setwd("G:/xxx/xxx")
+
+# Load the CSV file
+# Each row is assumed to represent a separate series
+data_csv <- read.csv("xxx.csv", header = FALSE, stringsAsFactors = FALSE)
+
+# Remove Byte Order Mark (BOM) from the first value if present
+data_csv[1, 1] <- sub("ï»¿", "", data_csv[1, 1])
+
+# Clean each row by removing non-numeric characters and convert to numeric vectors
+series_data <- lapply(1:nrow(data_csv), function(i) {
+  as.numeric(gsub("[^0-9.-]", "", unlist(data_csv[i, ])))
+})
+
+# Remove NA values from each series
+series_data <- lapply(series_data, function(x) x[!is.na(x)])
+
+# Print an example to verify numeric conversion
+print(series_data)
+
+# Re-split the data to ensure each row is treated as an independent series
+series_data <- split(data_csv, seq(nrow(data_csv)))
+series_data <- lapply(series_data, function(x) as.numeric(unlist(x)))
+
+# Initialize result vectors
+Rao_index <- numeric(length(series_data))
+standard_deviation <- numeric(length(series_data))
+mean_values <- numeric(length(series_data))
+cv_values <- numeric(length(series_data))
+
+# Loop over each data series
+for (i in 1:length(series_data)) {
+  values <- series_data[[i]]
+  n <- length(values)
+  
+  # Compute pairwise absolute differences
+  absolute_diff <- matrix(NA, n, n)
+  for (j in 1:(n - 1)) {
+    for (k in (j + 1):n) {
+      absolute_diff[j, k] <- abs(values[j] - values[k])
+    }
+  }
+
+  # Compute absolute and relative frequencies
+  abs_freq <- table(values)
+  rel_freq <- abs_freq / n
+
+  # Create matrix of pairwise product of relative frequencies
+  rel_freq_matrix <- matrix(NA, n, n)
+  for (j in 1:n) {
+    for (k in 1:n) {
+      if (j < k) {
+        rel_freq_matrix[j, k] <- rel_freq[as.character(values[j])] * rel_freq[as.character(values[k])]
+      } else if (j > k) {
+        rel_freq_matrix[j, k] <- rel_freq_matrix[k, j]  # Use symmetric value
+      } else {
+        rel_freq_matrix[j, k] <- NA
+      }
+    }
+  }
+
+  # Element-wise multiplication to compute Rao's Q index
+  result_matrix <- rel_freq_matrix * absolute_diff
+  Rao_index[i] <- sum(result_matrix, na.rm = TRUE)
+
+  # Compute standard deviation, mean, and coefficient of variation
+  standard_deviation[i] <- sd(values)
+  mean_values[i] <- mean(values)
+  cv_values[i] <- sd(values) / mean(values)
+}
+
+# Print results
+cat("Rao's Q index for each series:\n")
+print(Rao_index)
+
+cat("Standard deviation for each series:\n")
+print(standard_deviation)
+
+cat("Mean for each series:\n")
+print(mean_values)
+
+cat("Coefficient of Variation (CV) for each series:\n")
+print(cv_values)
+
+# Create a data frame with the results
+results <- data.frame(
+  Rao_Q_Index = Rao_index,
+  Standard_Deviation = standard_deviation,
+  Mean = mean_values,
+  Coefficient_of_Variation = cv_values
+)
+
+# Save results to a CSV file
+write.csv(results, file = "Raoindex_xxx.csv", row.names = FALSE)
+
+# NOTE: Update the output filename before each run to avoid overwriting previous results.
+
